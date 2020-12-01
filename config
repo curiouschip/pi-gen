@@ -1,0 +1,17 @@
+IMG_NAME=Pip
+RELEASE=buster
+DEPLOY_ZIP=0
+TARGET_HOSTNAME=pip
+FIRST_USER_NAME=pip
+
+if [ "$DEBUG" = "1" ]; then
+	echo "DEBUG MODE ENABLED"
+	FIRST_USER_PASS=blueberry
+	ENABLE_SSH=1
+	STAGE_LIST="stage0 stage1 stage2 pip-after pip-debug"
+else
+	FIRST_USER_PASS=veTie7oit0uajaeVoo3Shidoohi7coof
+	ENABLE_SSH=0
+	STAGE_LIST="stage0 stage1 stage2 pip-after"
+fi
+
