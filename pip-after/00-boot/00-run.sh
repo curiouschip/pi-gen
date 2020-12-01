@@ -1,6 +1,13 @@
 #!/bin/bash
 
 PIP_BOOT_DIR=$BASE_DIR/../boot
+LINUX_PACKAGE=$BASE_DIR/../kernel.tar.xz
+
+# 1) Install kernel from package
+
+tar -xf ${LINUX_PACKAGE} -C "${ROOTFS_DIR}/"
+
+# 2) Build Pip custom overlays and install
 
 pushd $PIP_BOOT_DIR
 make
