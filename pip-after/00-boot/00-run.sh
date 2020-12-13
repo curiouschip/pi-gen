@@ -15,5 +15,5 @@ popd
 
 install -m 644 $PIP_BOOT_DIR/overlays/*.dtbo "${ROOTFS_DIR}/boot/overlays/"
 install -m 644 $PIP_BOOT_DIR/config.txt "${ROOTFS_DIR}/boot/config.txt"
-#install -m 644 $PIP_BOOT_DIR/dt-blob.bin "${ROOTFS_DIR}/boot/dt-blob.bin"
+install -m 644 $PIP_BOOT_DIR/dt-blob.bin "${ROOTFS_DIR}/boot/dt-blob.bin"
 
