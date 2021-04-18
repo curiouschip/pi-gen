@@ -4,7 +4,7 @@ PIP_BOOT_DIR=$BASE_DIR/../boot
 
 # 1) Install kernel from package
 
-# tar -xf ${KERNEL_PACKAGE} -C "${ROOTFS_DIR}/"
+tar -xf ${KERNEL_PACKAGE} -C "${ROOTFS_DIR}/"
 
 # 2) Build Pip custom overlays and install
 
