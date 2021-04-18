@@ -12,24 +12,28 @@ if [ "${NO_PRERUN_QCOW2}" = "0" ]; then
 
 	BOOT_SIZE="$((256 * 1024 * 1024))"
 	ROOT_SIZE="$((6 * 1024 * 1024 * 1024))" # Fix root partition to 6GiB
+	HOME_SIZE="$((512 * 1024 * 1024))" # Initial 512MiB home partition - we'll expand it later
 
 	# All partition sizes and starts will be aligned to this size
 	ALIGN="$((4 * 1024 * 1024))"
-	
-	# No root margin since we're pinning root to 6GiB
-	ROOT_MARGIN="0"
 
 	BOOT_PART_START=$((ALIGN))
 	BOOT_PART_SIZE=$(((BOOT_SIZE + ALIGN - 1) / ALIGN * ALIGN))
 	ROOT_PART_START=$((BOOT_PART_START + BOOT_PART_SIZE))
-	ROOT_PART_SIZE=$(((ROOT_SIZE + ROOT_MARGIN + ALIGN  - 1) / ALIGN * ALIGN))
-	IMG_SIZE=$((BOOT_PART_START + BOOT_PART_SIZE + ROOT_PART_SIZE))
+	ROOT_PART_SIZE=$(((ROOT_SIZE + ALIGN  - 1) / ALIGN * ALIGN))
+	BANK_PART_START=$((ROOT_PART_START + ROOT_PART_SIZE))
+	HOME_PART_START=$((BANK_PART_START + ROOT_PART_SIZE))
+	HOME_PART_SIZE=$(((HOME_SIZE + ALIGN - 1) / ALIGN * ALIGN))
+
+	IMG_SIZE=$((BOOT_PART_START + BOOT_PART_SIZE + ROOT_PART_SIZE + ROOT_PART_SIZE + HOME_PART_SIZE))
 
 	truncate -s "${IMG_SIZE}" "${IMG_FILE}"
 
 	parted --script "${IMG_FILE}" mklabel msdos
 	parted --script "${IMG_FILE}" unit B mkpart primary fat32 "${BOOT_PART_START}" "$((BOOT_PART_START + BOOT_PART_SIZE - 1))"
 	parted --script "${IMG_FILE}" unit B mkpart primary ext4 "${ROOT_PART_START}" "$((ROOT_PART_START + ROOT_PART_SIZE - 1))"
+	parted --script "${IMG_FILE}" unit B mkpart primary ext4 "${BANK_PART_START}" "$((BANK_PART_START + ROOT_PART_SIZE - 1))"
+	parted --script "${IMG_FILE}" unit B mkpart primary ext4 "${HOME_PART_START}" "$((HOME_PART_START + HOME_PART_SIZE - 1))"
 
 	PARTED_OUT=$(parted -sm "${IMG_FILE}" unit b print)
 	BOOT_OFFSET=$(echo "$PARTED_OUT" | grep -e '^1:' | cut -d':' -f 2 | tr -d B)
@@ -37,6 +41,9 @@ if [ "${NO_PRERUN_QCOW2}" = "0" ]; then
 
 	ROOT_OFFSET=$(echo "$PARTED_OUT" | grep -e '^2:' | cut -d':' -f 2 | tr -d B)
 	ROOT_LENGTH=$(echo "$PARTED_OUT" | grep -e '^2:' | cut -d':' -f 4 | tr -d B)
+
+	HOME_OFFSET=$(echo "$PARTED_OUT" | grep -e '^4:' | cut -d':' -f 2 | tr -d B)
+	HOME_LENGTH=$(echo "$PARTED_OUT" | grep -e '^4:' | cut -d':' -f 4 | tr -d B)
 
 	echo "Mounting BOOT_DEV..."
 	cnt=0
@@ -64,8 +71,22 @@ if [ "${NO_PRERUN_QCOW2}" = "0" ]; then
 		fi
 	done
 
+	echo "Mounting HOME_DEV..."
+	cnt=0
+	until HOME_DEV=$(losetup --show -f -o "${HOME_OFFSET}" --sizelimit "${HOME_LENGTH}" "${IMG_FILE}"); do
+		if [ $cnt -lt 5 ]; then
+			cnt=$((cnt + 1))
+			echo "Error in losetup for HOME_DEV.  Retrying..."
+			sleep 5
+		else
+			echo "ERROR: losetup for HOME_DEV failed; exiting"
+			exit 1
+		fi
+	done
+
 	echo "/boot: offset $BOOT_OFFSET, length $BOOT_LENGTH"
 	echo "/:     offset $ROOT_OFFSET, length $ROOT_LENGTH"
+	echo "/home: offset $HOME_OFFSET, length $HOME_LENGTH"
 
 	ROOT_FEATURES="^huge_file"
 	for FEATURE in metadata_csum 64bit; do
@@ -75,10 +96,13 @@ if [ "${NO_PRERUN_QCOW2}" = "0" ]; then
 	done
 	mkdosfs -n boot -F 32 -v "$BOOT_DEV" > /dev/null
 	mkfs.ext4 -L rootfs -O "$ROOT_FEATURES" "$ROOT_DEV" > /dev/null
+	mkfs.ext4 -L home -O "$ROOT_FEATURES" "$HOME_DEV" > /dev/null
 
 	mount -v "$ROOT_DEV" "${ROOTFS_DIR}" -t ext4
 	mkdir -p "${ROOTFS_DIR}/boot"
 	mount -v "$BOOT_DEV" "${ROOTFS_DIR}/boot" -t vfat
+	mkdir -p "${ROOTFS_DIR}/home"
+	mount -v "$HOME_DEV" "${ROOTFS_DIR}/home" -t ext4
 
 	rsync -aHAXx --exclude /var/cache/apt/archives --exclude /boot "${EXPORT_ROOTFS_DIR}/" "${ROOTFS_DIR}/"
 	rsync -rtx "${EXPORT_ROOTFS_DIR}/boot/" "${ROOTFS_DIR}/boot/"
