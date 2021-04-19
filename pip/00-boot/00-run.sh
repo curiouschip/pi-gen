@@ -98,5 +98,5 @@ sudo install -m 444 -o root -g root files/certificate.pem "${ROOTFS_DIR}/opt/pip
 
 VERSION_FILE="${ROOTFS_DIR}/opt/pip/VERSION"
 echo $PIP_VERSION | sudo tee $VERSION_FILE
-sudo chown root:root VERSION_FILE
-sudo chmod 444 VERSION_FILE
+sudo chown root:root $VERSION_FILE
+sudo chmod 444 $VERSION_FILE
