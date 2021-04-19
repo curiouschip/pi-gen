@@ -18,10 +18,19 @@ install -m 644 $PIP_BOOT_DIR/dt-blob.bin "${ROOTFS_DIR}/boot/dt-blob.bin"
 
 if [ "$DEBUG" = "1" ]; then
 	install -m 644 $PIP_BOOT_DIR/cmdline-debug.txt "${ROOTFS_DIR}/boot/cmdline.txt"
-	sudo install -m 600 -o root -g root files/wpa_supplicant.conf $ROOTFS_DIR/etc/wpa_supplicant/wpa_supplicant.conf
+	sudo install -m 600 -o root -g root files/wpa_supplicant.conf "${ROOTFS_DIR}/etc/wpa_supplicant/wpa_supplicant.conf"
 else
 	install -m 644 $PIP_BOOT_DIR/cmdline.txt "${ROOTFS_DIR}/boot/cmdline.txt"
 fi
+
+# 3) Don't blacklist Realtek drivers
+
+sudo rm -f "${ROOTFS_DIR}/etc/modprobe.d/blacklist-8192cu.conf"
+sudo rm -f "${ROOTFS_DIR}/etc/modprobe.d/blacklist-rtl8xxxu.conf"
+
+# 4) Network setup, for some reason this is missing
+
+sudo install -m 644 -o root -g root files/interfaces "${ROOTFS_DIR}/etc/network/interfaces"
 
 on_chroot << EOF
 apt-get update
