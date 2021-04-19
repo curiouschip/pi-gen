@@ -34,4 +34,5 @@ sudo install -m 644 -o root -g root files/interfaces "${ROOTFS_DIR}/etc/network/
 
 on_chroot << EOF
 apt-get update
+systemctl enable wpa_supplicant
 EOF
