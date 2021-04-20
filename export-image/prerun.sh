@@ -11,28 +11,35 @@ if [ "${NO_PRERUN_QCOW2}" = "0" ]; then
 	mkdir -p "${ROOTFS_DIR}"
 
 	BOOT_SIZE="$((256 * 1024 * 1024))"
-	ROOT_SIZE="$((6 * 1024 * 1024 * 1024))" # Fix root partition to 6GiB
+	ROOT_CONTENT_SIZE=$(du --apparent-size -s "${EXPORT_ROOTFS_DIR}" --exclude var/cache/apt/archives --exclude boot --block-size=1 | cut -f 1)
+	ROOT_RESERVE_SIZE="$((6 * 1024 * 1024 * 1024))" # Fix root partition to 6GiB
 	HOME_SIZE="$((512 * 1024 * 1024))" # Initial 512MiB home partition - we'll expand it later
 
 	# All partition sizes and starts will be aligned to this size
 	ALIGN="$((4 * 1024 * 1024))"
+	# Add this much space to the calculated file size. This allows for
+	# some overhead (since actual space usage is usually rounded up to the
+	# filesystem block size) and gives some free space on the resulting
+	# image.
+	ROOT_MARGIN="$(echo "($ROOT_CONTENT_SIZE * 0.2 + 200 * 1024 * 1024) / 1" | bc)"
 
 	BOOT_PART_START=$((ALIGN))
 	BOOT_PART_SIZE=$(((BOOT_SIZE + ALIGN - 1) / ALIGN * ALIGN))
 	ROOT_PART_START=$((BOOT_PART_START + BOOT_PART_SIZE))
-	ROOT_PART_SIZE=$(((ROOT_SIZE + ALIGN  - 1) / ALIGN * ALIGN))
-	BANK_PART_START=$((ROOT_PART_START + ROOT_PART_SIZE))
-	HOME_PART_START=$((BANK_PART_START + ROOT_PART_SIZE))
+	ROOT_PART_CONTENT_SIZE=$((ROOT_CONTENT_SIZE + ROOT_MARGIN))
+	ROOT_PART_RESERVE_SIZE=$(((ROOT_RESERVE_SIZE + ALIGN  - 1) / ALIGN * ALIGN))
+	BANK_PART_START=$((ROOT_PART_START + ROOT_PART_RESERVE_SIZE))
+	HOME_PART_START=$((BANK_PART_START + ROOT_PART_RESERVE_SIZE))
 	HOME_PART_SIZE=$(((HOME_SIZE + ALIGN - 1) / ALIGN * ALIGN))
 
-	IMG_SIZE=$((BOOT_PART_START + BOOT_PART_SIZE + ROOT_PART_SIZE + ROOT_PART_SIZE + HOME_PART_SIZE))
+	IMG_SIZE=$((BOOT_PART_START + BOOT_PART_SIZE + ROOT_PART_RESERVE_SIZE + ROOT_PART_RESERVE_SIZE + HOME_PART_SIZE))
 
 	truncate -s "${IMG_SIZE}" "${IMG_FILE}"
 
 	parted --script "${IMG_FILE}" mklabel msdos
 	parted --script "${IMG_FILE}" unit B mkpart primary fat32 "${BOOT_PART_START}" "$((BOOT_PART_START + BOOT_PART_SIZE - 1))"
-	parted --script "${IMG_FILE}" unit B mkpart primary ext4 "${ROOT_PART_START}" "$((ROOT_PART_START + ROOT_PART_SIZE - 1))"
-	parted --script "${IMG_FILE}" unit B mkpart primary ext4 "${BANK_PART_START}" "$((BANK_PART_START + ROOT_PART_SIZE - 1))"
+	parted --script "${IMG_FILE}" unit B mkpart primary ext4 "${ROOT_PART_START}" "$((ROOT_PART_START + ROOT_PART_CONTENT_SIZE - 1))"
+	parted --script "${IMG_FILE}" unit B mkpart primary ext4 "${BANK_PART_START}" "$((BANK_PART_START + ROOT_PART_RESERVE_SIZE - 1))"
 	parted --script "${IMG_FILE}" unit B mkpart primary ext4 "${HOME_PART_START}" "$((HOME_PART_START + HOME_PART_SIZE - 1))"
 
 	PARTED_OUT=$(parted -sm "${IMG_FILE}" unit b print)
