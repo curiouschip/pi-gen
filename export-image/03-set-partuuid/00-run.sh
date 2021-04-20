@@ -12,8 +12,6 @@ if [ "${NO_PRERUN_QCOW2}" = "0" ]; then
 	sed -i "s;BOOTDEV;/dev/mmcblk0p1;" "${ROOTFS_DIR}/etc/fstab"
 	sed -i "s;ROOTDEV;/dev/mmcblk0p2;" "${ROOTFS_DIR}/etc/fstab"
 	echo "/dev/mmcblk0p4  /home           ext4    defaults,noatime  0       1" >> "${ROOTFS_DIR}/etc/fstab"
-	
-	sed -i "s;ROOTDEV;/dev/mmcblk0p2;" "${ROOTFS_DIR}/boot/bank_a/cmdline.txt"
 
 fi
 
